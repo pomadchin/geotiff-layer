@@ -1,4 +1,4 @@
-package geotrellis.chatta
+package geotrellis.geotiff
 
 import java.net.URI
 
@@ -23,7 +23,7 @@ import scala.util.Try
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-trait ChattaS3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor with LazyLogging {
+trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor with LazyLogging {
   // hardcoded paths only for prototype
   val bucket = "s3://geotrellis-test/daunnc/LC_TEST" //"s3://landsat-pds/c1"
   /*val tiles =

@@ -1,4 +1,4 @@
-package geotrellis.chatta
+package geotrellis.geotiff
 
 import org.apache.log4j.{PatternLayout, WriterAppender, Logger}
 

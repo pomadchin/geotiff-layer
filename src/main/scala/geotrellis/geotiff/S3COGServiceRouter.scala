@@ -25,14 +25,15 @@ import scala.concurrent.Future
 
 trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor with LazyLogging {
   // hardcoded paths only for prototype
-  val bucket = "s3://geotrellis-test/daunnc/LC_TEST" //"s3://landsat-pds/c1"
-  /*val tiles =
+  //val bucket = "s3://geotrellis-test/daunnc/LC_TEST" //"s3://landsat-pds/c1"
+  val bucket = "s3://landsat-pds/c1"
+  val tiles =
     List(
-      "LC08_L1TP_139045_20170304_20170316_01_T1",
+      "L8/139/045/LC08_L1TP_139045_20170304_20170316_01_T1",
       "L8/139/046/LC08_L1TP_139046_20170304_20170316_01_T1"
-    )*/
-  val paths = Seq(new URI(bucket))
-    // tiles.map(p => new URI(s"$bucket/$p"))
+    )
+  val paths = //Seq(new URI(bucket))
+    tiles.map(p => new URI(s"$bucket/$p"))
 
   val red1 = "LC08_L1TP_139045_20170304_20170316_01_T1_B4"
   val red2 = "LC08_L1TP_139046_20170304_20170316_01_T1_B4"
@@ -45,6 +46,15 @@ trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor with 
 
   println(s"fetching data from s3...")
   val geoTiffLayer = SinglebandGeoTiffCollectionLayerReader.fetchSingleband(paths)
+  val geoTiffLayerTest =
+    SinglebandGeoTiffCollectionLayerReader
+      .fetchSingleband(
+        //https://landsat-pds.s3.amazonaws.com/L8/139/045/LC81390452014295LGN00/LC81390452014295LGN00_B4.TIF
+        Seq(
+          //new URI("s3://geotrellis-test/daunnc/LC_TEST/LC08_L1TP_139045_20170304_20170316_01_T1_B4.TIF")
+          new URI(s"s3://landsat-pds/c1/L8/139/045/LC08_L1TP_139045_20170304_20170316_01_T1/LC08_L1TP_139045_20170304_20170316_01_T1_B4.TIF")
+        )
+      )
   println(s"fetching data from s3 finished.")
 
   // val geoTiffLayer: GeoTiffLayer[Tile] = GeoTiffLayer.fromSinglebandFiles(path, ZoomedLayoutScheme(WebMercator))(sc)
@@ -57,13 +67,14 @@ trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor with 
   def routes = get {
     pathPrefix("gt") {
       pathPrefix("tms")(tms) ~
-      pathPrefix("test")(test)
+      pathPrefix("test")(test) ~
+      pathPrefix("test")(test2)
     }
   }
 
   def colors = complete(Future(ColorRampMap.getJson))
 
-  /** Render function to make LC8 beatiful */
+  /** Render function to make LC8 beautiful */
   def lossyrobRender(r: Tile, g: Tile, b: Tile): MultibandTile = {
     // Landsat
     // magic numbers. Fiddled with until visually it looked ok. ¯\_(ツ)_/¯
@@ -180,8 +191,8 @@ trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor with 
   def test = pathPrefix("test1") {
     get {
       complete {
-        val (str, _) = timedCreate2("Read finished") {
-          geoTiffLayer.read(LayerId("LC08_L1TP_139045_20170304_20170316_01_T1_B4", 9))(380, 224)
+        val (str, _, _) = timedCreate3("Read finished") {
+          geoTiffLayerTest.read(LayerId("LC08_L1TP_139045_20170304_20170316_01_T1_B4", 9))(380, 224)
         }
 
         str
@@ -189,6 +200,35 @@ trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor with 
     }
   }
 
+  def test2 = pathPrefix("test2") {
+    get {
+      complete {
+        import spire.syntax.cfor._
+
+        var acc: Double = 0
+
+        cfor(0)(_ < 20, _ + 1) { i =>
+          val (_, t, _) = timedCreate3(s"Read finished ($i)") {
+            geoTiffLayerTest.read(LayerId("LC08_L1TP_139045_20170304_20170316_01_T1_B4", 9))(380, 224)
+          }
+          acc += t
+        }
+
+        val (str, t, _) = timedCreate3("Read finished (final)") {
+          geoTiffLayerTest.read(LayerId("LC08_L1TP_139045_20170304_20170316_01_T1_B4", 9))(380, 224)
+        }
+
+        acc += t
+
+        val avgT = acc / 21
+        val avgS = s"Average: ${avgT} ms"
+
+        str ++ "\n" ++ avgS
+      }
+    }
+  }
+
+  /** http://34.215.167.67:8777/gt/tms/{z}/{x}/{y}/ */
   def tms = pathPrefix(IntNumber / IntNumber / IntNumber) { (zoom, x, y) =>
 
     val layers = List(red1 -> red2, green1 -> green2, blue1 -> blue2)

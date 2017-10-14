@@ -16,7 +16,7 @@ trait LazyLogging { self =>
 
   private val logBuffer = new util.concurrent.ConcurrentHashMap[String, mutable.ListBuffer[String]]()
 
-  def timedCreate2[T](endMsg: String)(f: => T): (String, T) = {
+  def timedCreate3[T](endMsg: String)(f: => T): (String, Double, T) = {
     val s = System.currentTimeMillis
     val result = f
     val e = System.currentTimeMillis
@@ -24,7 +24,7 @@ trait LazyLogging { self =>
     val p = s"\t$endMsg (in $t ms)"
     println(p)
 
-    p -> result
+    (p, t.replace(",", """.""").toDouble, result)
   }
 
   def timedCreate[T](id: String, startMsg: String, endMsg: String)(f: => T): T = {

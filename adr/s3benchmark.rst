@@ -238,8 +238,8 @@ Logs are skipped as it's huge.
 **Read finished (final)**: 17,232 ms
 **Average, 21 iterations**: 16,740 ms
 
-EC2 US-West:
-^^^^^^^^^^^^
+EC2 US-West (but data accidentally is on US-East):
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Initial result (1.2.0 version):**
 
@@ -413,7 +413,7 @@ with a better stream func
 **Read finished (final) (in 3,295 ms)**
 **Average: 3.942476190476189 ms**
 
-**Futures parallelized version with ranges no longer than 20k bytes**:  ¯\_(ツ)_/¯
+**Futures parallelized version with ranges no longer than 10k bytes**:  ¯\_(ツ)_/¯
 
 Logs are skipped as it's huge.
 
@@ -423,6 +423,20 @@ Logs are skipped as it's huge.
 Decision
 ^^^^^^^^
 
+The only change was to use
+
+  .. code:: scala
+
+
+    sun.misc.IOUtils.readFully
+    // instead of
+    IOUtils.toByteArray
+
+
 Conclusion
 ^^^^^^^^^^
 
+It makes sense to parallelize connections on machines with a slow connection. If machines are both in the same region it
+doesn't make any sense and even can cause slowdowns. The poor results above show how slow data access is from a `west-1`
+machine to data on `east-1`. S3 works very good even as is, and the motivation to write this ADR was a typo in links to
+example source data.

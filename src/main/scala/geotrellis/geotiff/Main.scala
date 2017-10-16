@@ -1,16 +1,9 @@
 package geotrellis.geotiff
 
-import geotrellis.kryo.AvroRegistrator
-
-import akka.actor.Props
-import akka.io.IO
 import akka.actor.ActorSystem
-import com.typesafe.config.ConfigFactory
-import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.event.Logging
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
-import org.apache.spark.{SparkConf, SparkContext}
 
 object AkkaSystem {
   implicit val system = ActorSystem("geotiff-demo")

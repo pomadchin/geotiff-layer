@@ -1,51 +1,70 @@
 package geotrellis.geotiff
 
-import java.net.URI
+import geotrellis.raster._
+import geotrellis.spark._
+import geotrellis.spark.io.s3.geotiff._
 
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
+import spire.syntax.cfor._
 import akka.http.scaladsl.model.{ContentType, HttpEntity, HttpResponse, MediaTypes}
 import akka.http.scaladsl.server.Directives
-import geotrellis.proj4.{LatLng, WebMercator}
-import geotrellis.raster._
-import geotrellis.raster.mapalgebra.local.Add
-import geotrellis.raster.render._
-import geotrellis.services._
-import geotrellis.spark._
-import geotrellis.spark.io._
-import geotrellis.spark.io.s3.geotiff._
-//import geotrellis.spark.io.geotiff._
-import geotrellis.vector._
-import geotrellis.vector.io.json.Implicits._
-import geotrellis.vector.reproject._
-import spray.json._
 
 import scala.util.Try
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor with LazyLogging {
+import java.net.URI
+
+trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor {
+  def timedCreate3[T](endMsg: String)(f: => T): (String, Double, T) = {
+    val s = System.currentTimeMillis
+    val result = f
+    val e = System.currentTimeMillis
+    val t = "%,d".format(e - s)
+    val p = s"\t$endMsg (in $t ms)"
+    println(p)
+
+    (p, t.replace(",", """.""").toDouble, result)
+  }
+
+  def timedCreate[T](endMsg: String)(f: => T): T =
+    timedCreate3(endMsg)(f)._3
+
+  // query only rgb metadata and only tiffs
+  val filter: String => Boolean =
+    s => s.endsWith(".TIF") && (s.contains("B4") || s.contains("B3") || s.contains("B2"))
+
   // hardcoded paths only for prototype
-  //val bucket = "s3://geotrellis-test/daunnc/LC_TEST" //"s3://landsat-pds/c1"
+  val bucketEast = "s3://geotrellis-test/daunnc/LC_TEST"
+
   val bucket = "s3://landsat-pds/c1"
   val tiles =
     List(
       "L8/139/045/LC08_L1TP_139045_20170304_20170316_01_T1",
       "L8/139/046/LC08_L1TP_139046_20170304_20170316_01_T1"
     )
-  val paths = //Seq(new URI(bucket))
+
+  val paths =
     tiles.map(p => new URI(s"$bucket/$p"))
 
-  val red1 = "LC08_L1TP_139045_20170304_20170316_01_T1_B4"
-  val red2 = "LC08_L1TP_139046_20170304_20170316_01_T1_B4"
+  val pathsEast = Seq(new URI(bucketEast))
 
-  val green1 = "LC08_L1TP_139045_20170304_20170316_01_T1_B3"
-  val green2 = "LC08_L1TP_139046_20170304_20170316_01_T1_B3"
+  def first(band: Int): String = s"LC08_L1TP_139045_20170304_20170316_01_T1_B${band}"
+  def second(band: Int): String = s"LC08_L1TP_139046_20170304_20170316_01_T1_B${band}"
 
-  val blue1 = "LC08_L1TP_139045_20170304_20170316_01_T1_B2"
-  val blue2 = "LC08_L1TP_139046_20170304_20170316_01_T1_B2"
+  val red1 = first(4)
+  val red2 = second(4)
 
+  val green1 = first(3)
+  val green2 = second(3)
+
+  val blue1 = first(2)
+  val blue2 = second(2)
+
+  val layers = List(red1 -> red2, green1 -> green2, blue1 -> blue2)
+
+  // current metadata is not persistent, it's a sort of a bad in-memory DB.
   println(s"fetching data from s3...")
-  val geoTiffLayer = SinglebandGeoTiffCollectionLayerReader.fetchSingleband(paths)
+  val geoTiffLayer = SinglebandGeoTiffCollectionLayerReader.fetchSingleband(paths, filterPaths = filter)
   val geoTiffLayerTest =
     SinglebandGeoTiffCollectionLayerReader
       .fetchSingleband(
@@ -53,11 +72,10 @@ trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor with 
         Seq(
           //new URI("s3://geotrellis-test/daunnc/LC_TEST/LC08_L1TP_139045_20170304_20170316_01_T1_B4.TIF")
           new URI(s"s3://landsat-pds/c1/L8/139/045/LC08_L1TP_139045_20170304_20170316_01_T1/LC08_L1TP_139045_20170304_20170316_01_T1_B4.TIF")
-        )
+        ),
+        filterPaths = filter
       )
   println(s"fetching data from s3 finished.")
-
-  // val geoTiffLayer: GeoTiffLayer[Tile] = GeoTiffLayer.fromSinglebandFiles(path, ZoomedLayoutScheme(WebMercator))(sc)
 
   val baseZoomLevel = 9
 
@@ -71,8 +89,6 @@ trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor with 
       pathPrefix("test")(test2)
     }
   }
-
-  def colors = complete(Future(ColorRampMap.getJson))
 
   /** Render function to make LC8 beautiful */
   def lossyrobRender(r: Tile, g: Tile, b: Tile): MultibandTile = {
@@ -158,32 +174,24 @@ trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor with 
   }
 
   def merge2tiles(r1: Option[Raster[Tile]], r2: Option[Raster[Tile]]): Tile = {
-    //val prototype = IntArrayTile.empty(256, 256)
     (r1, r2) match {
       case (Some(t1), Some(t2)) =>
-        println("here0")
-        println(s"t1.findMinMax: ${t1.findMinMax}")
-        println(s"t2.findMinMax: ${t2.findMinMax}")
-
         t1
           .tile
           .prototype(256, 256)
           .merge(t1)
           .merge(t2)
       case (Some(t1), _) =>
-        println("here1")
         t1
           .tile
           .prototype(256, 256)
           .merge(t1)
       case (_, Some(t2)) =>
-        println("here2")
         t2
           .tile
           .prototype(256, 256)
           .merge(t2)
       case _ =>
-        println("hereP")
         IntArrayTile.empty(256, 256)
     }
   }
@@ -203,8 +211,6 @@ trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor with 
   def test2 = pathPrefix("test2") {
     get {
       complete {
-        import spire.syntax.cfor._
-
         var acc: Double = 0
 
         cfor(0)(_ < 20, _ + 1) { i =>
@@ -228,20 +234,8 @@ trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor with 
     }
   }
 
-  /** http://34.215.167.67:8777/gt/tms/{z}/{x}/{y}/ */
+  /** http://localhost:8777/gt/tms/{z}/{x}/{y}/ */
   def tms = pathPrefix(IntNumber / IntNumber / IntNumber) { (zoom, x, y) =>
-
-    val layers = List(red1 -> red2, green1 -> green2, blue1 -> blue2)
-
-    def timedCreate[T](endMsg: String)(f: => T): T = {
-      val s = System.currentTimeMillis
-      val result = f
-      val e = System.currentTimeMillis
-      val t = "%,d".format(e - s)
-      println(s"\t$endMsg (in $t ms)")
-      result
-    }
-
     complete {
       Future {
         println(s"querying $x / $y / $zoom")

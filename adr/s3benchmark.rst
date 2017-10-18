@@ -258,60 +258,70 @@ getObjectRequest.setRange(21013289, 23375593): 2362305
 * client.readRange(start, start + length, request) (in 2,754 ms)
 
 getObjectRequest.setRange(26068606, 26134141): 65536
+
 * s3client.getObject(getObjectRequest) (in 185 ms)
 * obj.getObjectContent (in 0 ms)
 * IOUtils.toByteArray(stream) (in 81 ms)
 * client.readRange(start, start + length, request) (in 267 ms)
 
 getObjectRequest.setRange(26068606, 28468092): 2399487
+
 * s3client.getObject(getObjectRequest) (in 152 ms)
 * obj.getObjectContent (in 0 ms)
 * IOUtils.toByteArray(stream) (in 1,712 ms)
 * client.readRange(start, start + length, request) (in 1,865 ms)
 
 getObjectRequest.setRange(31181945, 31247480): 65536
+
 * s3client.getObject(getObjectRequest) (in 167 ms)
 * obj.getObjectContent (in 0 ms)
 * IOUtils.toByteArray(stream) (in 4 ms)
 * client.readRange(start, start + length, request) (in 171 ms)
 
 getObjectRequest.setRange(31181945, 33446463): 2264519
+
 * s3client.getObject(getObjectRequest) (in 141 ms)
 * obj.getObjectContent (in 0 ms)
 * IOUtils.toByteArray(stream) (in 914 ms)
 * client.readRange(start, start + length, request) (in 1,055 ms)
 
 getObjectRequest.setRange(36291738, 36357273): 65536
+
 * s3client.getObject(getObjectRequest) (in 229 ms)
 * obj.getObjectContent (in 0 ms)
 * IOUtils.toByteArray(stream) (in 4 ms)
 * client.readRange(start, start + length, request) (in 233 ms)
 
 getObjectRequest.setRange(36291738, 38161241): 1869504
+
 * s3client.getObject(getObjectRequest) (in 186 ms)
 * obj.getObjectContent (in 0 ms)
 * IOUtils.toByteArray(stream) (in 658 ms)
 * client.readRange(start, start + length, request) (in 844 ms)
 
 getObjectRequest.setRange(41072048, 41137583): 65536
+
 * s3client.getObject(getObjectRequest) (in 165 ms)
 * obj.getObjectContent (in 0 ms)
 * IOUtils.toByteArray(stream) (in 4 ms)
 * client.readRange(start, start + length, request) (in 170 ms)
 
 getObjectRequest.setRange(41072048, 42836890): 1764843
+
 * s3client.getObject(getObjectRequest) (in 264 ms)
 * obj.getObjectContent (in 0 ms)
 * IOUtils.toByteArray(stream) (in 497 ms)
 * client.readRange(start, start + length, request) (in 762 ms)
 
 getObjectRequest.setRange(45778226, 45843761): 65536
+
 * s3client.getObject(getObjectRequest) (in 108 ms)
 * obj.getObjectContent (in 0 ms)
 * IOUtils.toByteArray(stream) (in 4 ms)
 * client.readRange(start, start + length, request) (in 112 ms)
 
 getObjectRequest.setRange(45778226, 47330500): 1552275
+
 * s3client.getObject(getObjectRequest) (in 116 ms)
 * obj.getObjectContent (in 0 ms)
 * IOUtils.toByteArray(stream) (in 341 ms)
@@ -406,6 +416,7 @@ getObjectRequest.setRange(45778226, 47330500): 1552275
 * IOUtils.toByteArray(stream) (in 319 ms)
 * client.readRange(start, start + length, request) (in 408 ms)
 
+
 **Read finished (final)**: 7,470 ms
 **Average, 21 iterations**: 4,910 ms
 
@@ -418,7 +429,7 @@ with a better stream func
 Logs are skipped as it's huge.
 
 **Read finished (final)**: 5,458 ms
-**Average, 21 iterations**: 5.04 ms
+**Average, 21 iterations**: 5,04 ms
 
 Decision
 ^^^^^^^^
@@ -440,3 +451,9 @@ It makes sense to parallelize connections on machines with a slow connection. If
 doesn't make any sense and even can cause slowdowns. The poor results above show how slow data access is from a `west-1`
 machine to data on `east-1`. S3 works very good even as is, and the motivation to write this ADR was a typo in links to
 example source data.
+
+When data is located with server in the same region the result is 1s average per tile.
+For sure it works slower on higher zoom levels but for higher zoom levels we can use overviews.
+
+In addition it looks like fetching tiff tags takes 10-20ms from 1 second query, and probably it a final
+micro optimisation and makes sense only after making the current API more stable.

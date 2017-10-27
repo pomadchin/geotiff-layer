@@ -3,25 +3,21 @@ package geotrellis.geotiff
 import geotrellis.raster._
 import geotrellis.spark._
 import geotrellis.spark.tiling._
+import geotrellis.geotiff.util.CSV
 import geotrellis.spark.io.hadoop.geotiff._
 import geotrellis.spark.io.s3.geotiff._
 import geotrellis.proj4.WebMercator
-import geotrellis.spark.io.hadoop.geotiff.InMemoryGeoTiffAttributeStore
-import geotrellis.spark.io.s3.S3Client
 import geotrellis.spark.tiling.ZoomedLayoutScheme
+
 import spire.syntax.cfor._
 import akka.http.scaladsl.model.{ContentType, HttpEntity, HttpResponse, MediaTypes}
 import akka.http.scaladsl.server.Directives
 import jp.ne.opt.chronoscala.Imports._
-import com.amazonaws.services.s3.AmazonS3URI
-import com.amazonaws.services.s3.model.ObjectMetadata
 
-import scala.util.Try
 import java.net.URI
 import java.time.{LocalDate, ZoneOffset}
 
-import geotrellis.geotiff.util.CSV
-
+import scala.util.Try
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Await, Future}
@@ -435,7 +431,7 @@ trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor {
   }*/
 
   /** http://localhost:8777/gt/tms/{z}/{x}/{y}/
-    * http://52.43.9.31:8777/gt/tms/{z}/{x}/{y}/
+    * http://52.40.240.211:8777/gt/tms/{z}/{x}/{y}/
     * */
   def tms = pathPrefix(IntNumber / IntNumber / IntNumber) { (zoom, x, y) =>
     complete {

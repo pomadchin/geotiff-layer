@@ -380,50 +380,56 @@ trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor {
     complete {
       Future {
         println(s"querying $x / $y / $zoom")
-        val fred: Future[Tile] = Future {
-          timedCreate(s"LayerId(RED, $zoom))($x, $y))") {
-            try {
-              geoTiffLayer.read(LayerId("RED", zoom))(x, y).tile
-            } catch {
-              case e: Exception =>
-                e.printStackTrace()
-                IntArrayTile.empty(256, 256)
+        if(zoom >= 7) {
+          val fred: Future[Tile] = Future {
+            timedCreate(s"LayerId(RED, $zoom))($x, $y))") {
+              try {
+                geoTiffLayer.read(LayerId("RED", zoom))(x, y).tile
+              } catch {
+                case e: Exception =>
+                  e.printStackTrace()
+                  IntArrayTile.empty(256, 256)
+              }
             }
           }
-        }
 
-        val fgreen: Future[Tile] = Future {
-          timedCreate(s"LayerId(GREEN, $zoom))($x, $y))") {
-            try {
-              geoTiffLayer.read(LayerId("GREEN", zoom))(x, y).tile
-            } catch {
-              case e: Exception =>
-                e.printStackTrace()
-                IntArrayTile.empty(256, 256)
+          val fgreen: Future[Tile] = Future {
+            timedCreate(s"LayerId(GREEN, $zoom))($x, $y))") {
+              try {
+                geoTiffLayer.read(LayerId("GREEN", zoom))(x, y).tile
+              } catch {
+                case e: Exception =>
+                  e.printStackTrace()
+                  IntArrayTile.empty(256, 256)
+              }
             }
           }
-        }
 
-        val fblue: Future[Tile] = Future {
-          timedCreate(s"LayerId(BLUE, $zoom))($x, $y))") {
-            try {
-              geoTiffLayer.read(LayerId("BLUE", zoom))(x, y).tile
-            } catch {
-              case e: Exception =>
-                e.printStackTrace()
-                IntArrayTile.empty(256, 256)
+          val fblue: Future[Tile] = Future {
+            timedCreate(s"LayerId(BLUE, $zoom))($x, $y))") {
+              try {
+                geoTiffLayer.read(LayerId("BLUE", zoom))(x, y).tile
+              } catch {
+                case e: Exception =>
+                  e.printStackTrace()
+                  IntArrayTile.empty(256, 256)
+              }
             }
           }
+
+          val fbytes =
+            for {
+              red <- fred
+              green <- fgreen
+              blue <- fblue
+            } yield lossyrobRender(red, green, blue).renderPng().bytes
+
+          fbytes.map(bytes => HttpResponse(entity = HttpEntity(ContentType(MediaTypes.`image/png`), bytes)))
+        } else {
+          Future {
+            HttpResponse(entity = HttpEntity(ContentType(MediaTypes.`image/png`), IntArrayTile.empty(256, 256).renderPng().bytes))
+          }
         }
-
-        val fbytes =
-          for {
-            red <- fred
-            green <- fgreen
-            blue <- fblue
-          } yield lossyrobRender(red, green, blue).renderPng().bytes
-
-        fbytes.map(bytes => HttpResponse(entity = HttpEntity(ContentType(MediaTypes.`image/png`), bytes)))
       }
     }
   }

@@ -8,14 +8,15 @@ import geotrellis.spark.io.hadoop.geotiff._
 import geotrellis.spark.io.s3.geotiff._
 import geotrellis.proj4.WebMercator
 import geotrellis.spark.tiling.ZoomedLayoutScheme
-
 import spire.syntax.cfor._
 import akka.http.scaladsl.model.{ContentType, HttpEntity, HttpResponse, MediaTypes}
 import akka.http.scaladsl.server.Directives
 import jp.ne.opt.chronoscala.Imports._
-
 import java.net.URI
 import java.time.{LocalDate, ZoneOffset}
+
+import geotrellis.raster.io.geotiff.Auto
+import geotrellis.raster.resample._
 
 import scala.util.Try
 import scala.collection.mutable.ListBuffer
@@ -103,11 +104,6 @@ trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor {
     //println(s"Constructed path: $path -> $rpath")
     new URI(path) -> rpath
   }
-
-  /** Inaccurate full LC8 coverage */
-  //val lcpaths = 0 to 250 map { i => f"${i}%03d" } toList
-  //val lcrows = 0 to 250 map { i => f"${i}%03d" } toList
-
 
   def collectMetadata = {
     var counter = 0
@@ -202,10 +198,9 @@ trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor {
 
   lazy val listBuffer = collectMetadata
 
-
-
-
-  /*val listBuffer: ListBuffer[Future[List[GeoTiffMetadata]]] = ListBuffer()
+  /*
+  // Inaccurate full LC8 coverage
+  val listBuffer: ListBuffer[Future[List[GeoTiffMetadata]]] = ListBuffer()
   println(s"fetching metadata...")
   cfor(0)(_ < 250, _ + 1) { i =>
     cfor(0)(_ < 250, _ + 1) { j =>
@@ -264,12 +259,24 @@ trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor {
     _.flatten
   }, Duration.Inf)
 
-  //val attributeStore: InMemoryGeoTiffAttributeStore = S3IMGeoTiffAttributeStore(() => data)
+  // val attributeStore: InMemoryGeoTiffAttributeStore = S3IMGeoTiffAttributeStore(() => data)
+  // attributeStore.persist(mdJson)
   val attributeStore = S3JsonGeoTiffAttributeStore(mdJson)
 
-  //attributeStore.persist(mdJson)
+  /**
+    * Auto(1) setting for LC8 works fine on zoomlevels >= 8
+    * Zoom level 7 is not fast enough
+    * Probably a better multithreading support can help with it
+    *
+    * */
+  val geoTiffLayer = S3GeoTiffLayerReader(
+    attributeStore = attributeStore,
+    layoutScheme   = ZoomedLayoutScheme(WebMercator),
+    resampleMethod = Bilinear,
+    strategy       = Auto(0) // Auto(0) // AutoHigherResolution is the best matching ovr resolution
+                             // Auto(1) is a bit better than we need to grab (used this to correspond mapbox qualiy)
+  )
 
-  val geoTiffLayer = S3GeoTiffLayerReader(attributeStore, ZoomedLayoutScheme(WebMercator))
   println(s"fetching data from s3 finished.")
 
   val baseZoomLevel = 9
@@ -280,9 +287,6 @@ trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor {
   def routes = get {
     pathPrefix("gt") {
       pathPrefix("tms")(tms)
-      /*~
-      pathPrefix("test")(test) ~
-      pathPrefix("test")(test2)*/
     }
   }
 
@@ -369,67 +373,6 @@ trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor {
     ArrayMultibandTile(adjRed, adjGreen, adjBlue)
   }
 
-  def merge2tiles(r1: Option[Raster[Tile]], r2: Option[Raster[Tile]]): Tile = {
-    (r1, r2) match {
-      case (Some(t1), Some(t2)) =>
-        t1
-          .tile
-          .prototype(256, 256)
-          .merge(t1)
-          .merge(t2)
-      case (Some(t1), _) =>
-        t1
-          .tile
-          .prototype(256, 256)
-          .merge(t1)
-      case (_, Some(t2)) =>
-        t2
-          .tile
-          .prototype(256, 256)
-          .merge(t2)
-      case _ =>
-        IntArrayTile.empty(256, 256)
-    }
-  }
-
-  /*def test = pathPrefix("test1") {
-    get {
-      complete {
-        val (str, _, _) = timedCreate3("Read finished") {
-          geoTiffLayerTest.read(LayerId("LC08_L1TP_139045_20170304_20170316_01_T1_B4", 9))(380, 224)
-        }
-
-        str
-      }
-    }
-  }
-
-  def test2 = pathPrefix("test2") {
-    get {
-      complete {
-        var acc: Double = 0
-
-        cfor(0)(_ < 20, _ + 1) { i =>
-          val (_, t, _) = timedCreate3(s"Read finished ($i)") {
-            geoTiffLayerTest.read(LayerId("LC08_L1TP_139045_20170304_20170316_01_T1_B4", 9))(380, 224)
-          }
-          acc += t
-        }
-
-        val (str, t, _) = timedCreate3("Read finished (final)") {
-          geoTiffLayerTest.read(LayerId("LC08_L1TP_139045_20170304_20170316_01_T1_B4", 9))(380, 224)
-        }
-
-        acc += t
-
-        val avgT = acc / 21
-        val avgS = s"Average: ${avgT} ms"
-
-        str ++ "\n" ++ avgS
-      }
-    }
-  }*/
-
   /** http://localhost:8777/gt/tms/{z}/{x}/{y}/
     * http://52.40.240.211:8777/gt/tms/{z}/{x}/{y}/
     * */
@@ -439,25 +382,37 @@ trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor {
         println(s"querying $x / $y / $zoom")
         val fred: Future[Tile] = Future {
           timedCreate(s"LayerId(RED, $zoom))($x, $y))") {
-            Try(geoTiffLayer.read(LayerId("RED", zoom))(x, y).tile)
-              .toOption
-              .getOrElse(IntArrayTile.empty(256, 256))
+            try {
+              geoTiffLayer.read(LayerId("RED", zoom))(x, y).tile
+            } catch {
+              case e: Exception =>
+                e.printStackTrace()
+                IntArrayTile.empty(256, 256)
+            }
           }
         }
 
         val fgreen: Future[Tile] = Future {
           timedCreate(s"LayerId(GREEN, $zoom))($x, $y))") {
-            Try(geoTiffLayer.read(LayerId("GREEN", zoom))(x, y).tile)
-              .toOption
-              .getOrElse(IntArrayTile.empty(256, 256))
+            try {
+              geoTiffLayer.read(LayerId("GREEN", zoom))(x, y).tile
+            } catch {
+              case e: Exception =>
+                e.printStackTrace()
+                IntArrayTile.empty(256, 256)
+            }
           }
         }
 
         val fblue: Future[Tile] = Future {
           timedCreate(s"LayerId(BLUE, $zoom))($x, $y))") {
-            Try(geoTiffLayer.read(LayerId("BLUE", zoom))(x, y).tile)
-              .toOption
-              .getOrElse(IntArrayTile.empty(256, 256))
+            try {
+              geoTiffLayer.read(LayerId("BLUE", zoom))(x, y).tile
+            } catch {
+              case e: Exception =>
+                e.printStackTrace()
+                IntArrayTile.empty(256, 256)
+            }
           }
         }
 
@@ -471,6 +426,5 @@ trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor {
         fbytes.map(bytes => HttpResponse(entity = HttpEntity(ContentType(MediaTypes.`image/png`), bytes)))
       }
     }
-
   }
 }

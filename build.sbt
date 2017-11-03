@@ -1,55 +1,74 @@
-name := "geotiff-layer"
-scalaVersion := "2.11.11"
-organization := "com.azavea"
-licenses := Seq("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0.html"))
-scalacOptions ++= Seq(
-  "-deprecation",
-  "-unchecked",
-  "-Yinline-warnings",
-  "-language:implicitConversions",
-  "-language:reflectiveCalls",
-  "-language:higherKinds",
-  "-language:postfixOps",
-  "-language:existentials",
-  "-feature")
-publishMavenStyle := true
-publishArtifact in Test := false
-pomIncludeRepository := { _ => false }
-
-val gtVersion        = "1.2.0-SNAPSHOT"
-val akkaActorVersion = "2.4.17"
-val akkaHttpVersion  = "10.0.3"
-
-libraryDependencies ++= Seq(
-  "org.locationtech.geotrellis" %% "geotrellis-spark-etl" % gtVersion,
-  "com.typesafe.akka" %% "akka-actor" % akkaActorVersion,
-  "com.typesafe.akka" %% "akka-http-core" % akkaHttpVersion,
-  "com.typesafe.akka" %% "akka-http" % akkaHttpVersion,
-  "com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpVersion,
-  "org.apache.spark"  %% "spark-core"    % "2.1.0",
-  "org.apache.hadoop"  % "hadoop-client" % "2.7.3"
+lazy val commonSettings = Seq(
+  name := "geotiff-layer",
+  scalaVersion := "2.11.11",
+  organization := "com.azavea",
+  licenses := Seq("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0.html")),
+  scalacOptions ++= Seq(
+    "-deprecation",
+    "-unchecked",
+    "-Yinline-warnings",
+    "-language:implicitConversions",
+    "-language:reflectiveCalls",
+    "-language:higherKinds",
+    "-language:postfixOps",
+    "-language:existentials",
+    "-feature"
+  ),
+  publishMavenStyle := true,
+  publishArtifact in Test := false,
+  pomIncludeRepository := { _ => false },
+  shellPrompt := { s => Project.extract(s).currentProject.id + " > " },
+  addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
+  test in assembly := {},
+  assemblyMergeStrategy in assembly := {
+    case "reference.conf" => MergeStrategy.concat
+    case "application.conf" => MergeStrategy.concat
+    case n if n.endsWith(".SF") || n.endsWith(".RSA") || n.endsWith(".DSA") => MergeStrategy.discard
+    case "META-INF/MANIFEST.MF" => MergeStrategy.discard
+    case _ => MergeStrategy.first
+  },
+  initialCommands in console := """
+                                  |import io.circe.parser._
+                                  |import io.circe.syntax._
+                                  |import geotrellis.spark.io._
+                                  |import geotrellis.spark.io.s3._
+                                """.trim.stripMargin
 )
 
-test in assembly := {}
+lazy val root = (project in file("."))
+  .settings(commonSettings: _*)
+  .aggregate(core, lambda, server)
 
-assemblyShadeRules in assembly := {
-  val shadePackage = "com.azavea.shaded.demo"
-  Seq(
-    ShadeRule.rename("com.google.common.**" -> s"$shadePackage.google.common.@1")
-      .inLibrary("com.azavea.geotrellis" %% "geotrellis-cassandra" % gtVersion).inAll,
-    ShadeRule.rename("io.netty.**" -> s"$shadePackage.io.netty.@1")
-      .inLibrary("com.azavea.geotrellis" %% "geotrellis-hbase" % gtVersion).inAll,
-    ShadeRule.rename("com.fasterxml.jackson.**" -> s"$shadePackage.com.fasterxml.jackson.@1")
-      .inLibrary("com.networknt" % "json-schema-validator" % "0.1.7").inAll,
-    ShadeRule.rename("org.apache.avro.**" -> s"$shadePackage.org.apache.avro.@1")
-      .inLibrary("com.azavea.geotrellis" %% "geotrellis-spark" % gtVersion).inAll
-  )
-}
+lazy val lambda = project
+  .settings(commonSettings: _*)
+  .settings(name := "geotiff-layer-lambda")
+  .settings(libraryDependencies ++= Seq(
+    Dependencies.circeCore,
+    Dependencies.circeGeneric,
+    Dependencies.circeParser,
+    Dependencies.awsJavaCore % Provided,
+    Dependencies.awsJavaEvents % Provided,
+    Dependencies.awsJavaLog4j % Provided
+  ))
+  .dependsOn(core)
 
-assemblyMergeStrategy in assembly := {
-  case s if s.startsWith("META-INF/services") => MergeStrategy.concat
-  case "reference.conf" | "application.conf"  => MergeStrategy.concat
-  case "META-INF/MANIFEST.MF" | "META-INF\\MANIFEST.MF" => MergeStrategy.discard
-  case "META-INF/ECLIPSEF.RSA" | "META-INF/ECLIPSEF.SF" => MergeStrategy.discard
-  case _ => MergeStrategy.first
-}
+lazy val server = project
+  .settings(commonSettings: _*)
+  .settings(name := "geotiff-layer-server")
+  .settings(libraryDependencies ++= Seq(
+    Dependencies.akkaActor,
+    Dependencies.akkaHttpCore,
+    Dependencies.akkaHttp,
+    Dependencies.akkaHttpSprayJson
+  ))
+  .dependsOn(core)
+
+lazy val core = project
+  .settings(commonSettings: _*)
+  .settings(name := "geotiff-layer-core")
+  .settings(libraryDependencies ++= Seq(
+    Dependencies.geotrellisSpark,
+    Dependencies.geotrellisS3,
+    Dependencies.sparkCore % Provided,
+    Dependencies.hadoopClient % Provided
+  ))

@@ -118,7 +118,7 @@ trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor {
           val fred: Future[Tile] = Future {
             timedCreate(s"LayerId(RED, $zoom))($x, $y))") {
               try {
-                geoTiffLayer.read(LayerId("RED", zoom))(x, y).tile
+                geoTiffLayer.read[Tile](LayerId("RED", zoom))(x, y).tile
               } catch {
                 case e: Exception =>
                   e.printStackTrace()
@@ -130,7 +130,7 @@ trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor {
           val fgreen: Future[Tile] = Future {
             timedCreate(s"LayerId(GREEN, $zoom))($x, $y))") {
               try {
-                geoTiffLayer.read(LayerId("GREEN", zoom))(x, y).tile
+                geoTiffLayer.read[Tile](LayerId("GREEN", zoom))(x, y).tile
               } catch {
                 case e: Exception =>
                   e.printStackTrace()
@@ -142,7 +142,7 @@ trait S3COGServiceRouter extends Directives with AkkaSystem.LoggerExecutor {
           val fblue: Future[Tile] = Future {
             timedCreate(s"LayerId(BLUE, $zoom))($x, $y))") {
               try {
-                geoTiffLayer.read(LayerId("BLUE", zoom))(x, y).tile
+                geoTiffLayer.read[Tile](LayerId("BLUE", zoom))(x, y).tile
               } catch {
                 case e: Exception =>
                   e.printStackTrace()

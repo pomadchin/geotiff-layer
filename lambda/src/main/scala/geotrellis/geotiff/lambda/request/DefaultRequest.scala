@@ -28,7 +28,7 @@ case class DefaultRequest (
         val fred: Future[Tile] = Future {
           timedCreate(s"LayerId(RED, $z))($x, $y))") {
             try {
-              geoTiffLayer.read(LayerId("RED", z))(x, y).tile
+              geoTiffLayer.read[Tile](LayerId("RED", z))(x, y).tile
             } catch {
               case e: Exception =>
                 e.printStackTrace()
@@ -40,7 +40,7 @@ case class DefaultRequest (
         val fgreen: Future[Tile] = Future {
           timedCreate(s"LayerId(GREEN, $z))($x, $y))") {
             try {
-              geoTiffLayer.read(LayerId("GREEN", z))(x, y).tile
+              geoTiffLayer.read[Tile](LayerId("GREEN", z))(x, y).tile
             } catch {
               case e: Exception =>
                 e.printStackTrace()
@@ -52,7 +52,7 @@ case class DefaultRequest (
         val fblue: Future[Tile] = Future {
           timedCreate(s"LayerId(BLUE, $z))($x, $y))") {
             try {
-              geoTiffLayer.read(LayerId("BLUE", z))(x, y).tile
+              geoTiffLayer.read[Tile](LayerId("BLUE", z))(x, y).tile
             } catch {
               case e: Exception =>
                 e.printStackTrace()

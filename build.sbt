@@ -59,7 +59,9 @@ lazy val server = project
     Dependencies.akkaActor,
     Dependencies.akkaHttpCore,
     Dependencies.akkaHttp,
-    Dependencies.akkaHttpSprayJson
+    Dependencies.akkaHttpSprayJson,
+    Dependencies.sparkCore,
+    Dependencies.hadoopClient
   ))
   .dependsOn(core)
 

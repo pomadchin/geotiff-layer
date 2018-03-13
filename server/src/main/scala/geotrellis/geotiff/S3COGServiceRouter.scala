@@ -2,25 +2,25 @@ package geotrellis.geotiff
 
 import geotrellis.raster._
 import geotrellis.spark._
-import geotrellis.spark.tiling._
-import geotrellis.geotiff.util.CSV
-import geotrellis.spark.io.hadoop.geotiff._
+// import geotrellis.spark.tiling._
+// import geotrellis.geotiff.util.CSV
+// import geotrellis.spark.io.hadoop.geotiff._
 import geotrellis.spark.io.s3.geotiff._
 import geotrellis.proj4.WebMercator
 import geotrellis.spark.tiling.ZoomedLayoutScheme
 import geotrellis.raster.io.geotiff.Auto
 import geotrellis.raster.resample._
 
-import spire.syntax.cfor._
+// import spire.syntax.cfor._
 import akka.http.scaladsl.model.{ContentType, HttpEntity, HttpResponse, MediaTypes}
 import akka.http.scaladsl.server.Directives
-import jp.ne.opt.chronoscala.Imports._
+// import jp.ne.opt.chronoscala.Imports._
 
-import java.net.URI
-import java.time.{LocalDate, ZoneOffset}
+// import java.net.URI
+// import java.time.{LocalDate, ZoneOffset}
 
-import scala.util.Try
-import scala.collection.mutable.ListBuffer
+// import scala.util.Try
+// import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
